@@ -20,6 +20,7 @@ import {
   PartyPopper,
   ChevronRight,
   LogOut,
+  MessageCircle,
 } from "lucide-react"
 
 import {
@@ -178,6 +179,12 @@ const data = {
       icon: FileText,
     },
     {
+      title: "WhatsApp",
+      url: "/admin/whatsapp",
+      icon: MessageCircle,
+      badge: "New",
+    },
+    {
       title: "Notifications",
       url: "/admin/notifications",
       icon: Bell,
@@ -289,7 +296,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
 
         {/* Secondary Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel>Analytics & Reports</SidebarGroupLabel>
+          <SidebarGroupLabel>Analytics & Communication</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {data.navSecondary.map((item) => (
@@ -299,7 +306,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                       <item.icon />
                       <span>{item.title}</span>
                       {item.badge && (
-                        <Badge variant="destructive" className="ml-auto">
+                        <Badge variant={item.badge === "New" ? "default" : "destructive"} className="ml-auto">
                           {item.badge}
                         </Badge>
                       )}
@@ -352,7 +359,7 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
                 side="bottom"
                 align="end"
                 sideOffset={4}

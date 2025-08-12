@@ -1,17 +1,19 @@
 import { configureStore } from "@reduxjs/toolkit"
-import authSlice from "./slices/authSlice"
-import eventSlice from "./slices/eventSlice"
-import budgetSlice from "./slices/budgetSlice"
-import guestSlice from "./slices/guestSlice"
-import vendorSlice from "./slices/vendorSlice"
+import authReducer from "./slices/authSlice"
+import eventReducer from "./slices/eventSlice"
+import budgetReducer from "./slices/budgetSlice"
+import guestReducer from "./slices/guestSlice"
+import vendorReducer from "./slices/vendorSlice"
+import analyticsReducer from "./slices/analyticsSlice"
 
 export const store = configureStore({
   reducer: {
-    auth: authSlice,
-    events: eventSlice,
-    budget: budgetSlice,
-    guests: guestSlice,
-    vendors: vendorSlice,
+    auth: authReducer,
+    events: eventReducer,
+    budget: budgetReducer,
+    guests: guestReducer,
+    vendors: vendorReducer,
+    analytics: analyticsReducer,
   },
 })
 

@@ -20,6 +20,7 @@ import {
   Clock,
   X,
   UserCheck,
+  UserPlus,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { fetchGuests, deleteGuest } from "@/store/slices/guestSlice"
@@ -43,7 +44,7 @@ const rsvpIcons = {
 
 export default function GuestsPage() {
   const dispatch = useDispatch()
-  const { guests, isLoading } = useSelector((state: any) => state.guests)
+  const { guests, stats, isLoading } = useSelector((state: any) => state.guests)
   const { events } = useSelector((state: any) => state.events)
   const [searchTerm, setSearchTerm] = useState("")
   const [rsvpFilter, setRsvpFilter] = useState("all")
@@ -60,6 +61,8 @@ export default function GuestsPage() {
       try {
         await dispatch(deleteGuest(guestId)).unwrap()
         toast.success("Guest deleted successfully")
+        // Refresh the list to update stats
+        dispatch(fetchGuests())
       } catch (error) {
         toast.error("Failed to delete guest")
       }
@@ -77,20 +80,34 @@ export default function GuestsPage() {
     return matchesSearch && matchesRsvp && matchesCategory && matchesEvent
   })
 
-  // Calculate stats
-  const totalGuests = guests.length
-  const confirmedGuests = guests.filter((guest: any) => guest.rsvp_status === "confirmed").length
-  const pendingGuests = guests.filter((guest: any) => guest.rsvp_status === "pending").length
-  const checkedInGuests = guests.filter((guest: any) => guest.checked_in).length
+  // Calculate stats from backend or fallback to client-side calculation
+  const totalGuests = stats?.total_guests || guests.length
+  const totalAttendees =
+    stats?.total_attendees || guests.reduce((sum: number, guest: any) => sum + 1 + (guest.plus_ones || 0), 0)
+  const confirmedGuests =
+    stats?.confirmed_guests || guests.filter((guest: any) => guest.rsvp_status === "confirmed").length
+  const confirmedAttendees =
+    stats?.confirmed_attendees ||
+    guests
+      .filter((guest: any) => guest.rsvp_status === "confirmed")
+      .reduce((sum: number, guest: any) => sum + 1 + (guest.plus_ones || 0), 0)
+  const pendingGuests = stats?.pending_guests || guests.filter((guest: any) => guest.rsvp_status === "pending").length
+  const checkedInGuests = stats?.checked_in_guests || guests.filter((guest: any) => guest.checked_in).length
 
   // Group by event for summary
   const eventSummary = events.map((event: any) => {
     const eventGuests = guests.filter((guest: any) => guest.event === event.id)
-    const confirmed = eventGuests.filter((guest: any) => guest.rsvp_status === "confirmed").length
+    const totalEventAttendees = eventGuests.reduce((sum: number, guest: any) => sum + 1 + (guest.plus_ones || 0), 0)
+    const confirmedEventAttendees = eventGuests
+      .filter((guest: any) => guest.rsvp_status === "confirmed")
+      .reduce((sum: number, guest: any) => sum + 1 + (guest.plus_ones || 0), 0)
+
     return {
       ...event,
       totalGuests: eventGuests.length,
-      confirmed,
+      totalAttendees: totalEventAttendees,
+      confirmedAttendees: confirmedEventAttendees,
+      confirmed: eventGuests.filter((guest: any) => guest.rsvp_status === "confirmed").length,
       pending: eventGuests.filter((guest: any) => guest.rsvp_status === "pending").length,
       declined: eventGuests.filter((guest: any) => guest.rsvp_status === "declined").length,
     }
@@ -137,7 +154,18 @@ export default function GuestsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalGuests}</div>
-            <p className="text-xs text-muted-foreground">Across all events</p>
+            <p className="text-xs text-muted-foreground">Invited guests</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Attendees</CardTitle>
+            <UserPlus className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{totalAttendees}</div>
+            <p className="text-xs text-muted-foreground">Including plus ones</p>
           </CardContent>
         </Card>
 
@@ -148,30 +176,17 @@ export default function GuestsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{confirmedGuests}</div>
-            <p className="text-xs text-muted-foreground">
-              {totalGuests > 0 ? ((confirmedGuests / totalGuests) * 100).toFixed(1) : 0}% response rate
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{pendingGuests}</div>
-            <p className="text-xs text-muted-foreground">Awaiting response</p>
+            <p className="text-xs text-muted-foreground">{confirmedAttendees} total attendees</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Checked In</CardTitle>
-            <UserCheck className="h-4 w-4 text-blue-600" />
+            <UserCheck className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{checkedInGuests}</div>
+            <div className="text-2xl font-bold text-purple-600">{checkedInGuests}</div>
             <p className="text-xs text-muted-foreground">At events</p>
           </CardContent>
         </Card>
@@ -182,7 +197,7 @@ export default function GuestsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Guests by Event</CardTitle>
-            <CardDescription>Guest breakdown for each event</CardDescription>
+            <CardDescription>Guest breakdown for each event (including plus ones)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -190,20 +205,23 @@ export default function GuestsPage() {
                 <div key={event.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="space-y-1">
                     <h4 className="font-medium">{event.name}</h4>
-                    <p className="text-sm text-muted-foreground">{event.totalGuests} total guests</p>
+                    <p className="text-sm text-muted-foreground">
+                      {event.totalGuests} guests • {event.totalAttendees} total attendees
+                    </p>
                   </div>
                   <div className="flex items-center gap-4 text-sm">
                     <div className="text-center">
                       <div className="font-medium text-green-600">{event.confirmed}</div>
-                      <div className="text-muted-foreground">Confirmed</div>
+                      <div className="text-xs text-muted-foreground">Confirmed</div>
+                      <div className="text-xs text-green-600">({event.confirmedAttendees} attendees)</div>
                     </div>
                     <div className="text-center">
                       <div className="font-medium text-yellow-600">{event.pending}</div>
-                      <div className="text-muted-foreground">Pending</div>
+                      <div className="text-xs text-muted-foreground">Pending</div>
                     </div>
                     <div className="text-center">
                       <div className="font-medium text-red-600">{event.declined}</div>
-                      <div className="text-muted-foreground">Declined</div>
+                      <div className="text-xs text-muted-foreground">Declined</div>
                     </div>
                   </div>
                 </div>
@@ -304,6 +322,7 @@ export default function GuestsPage() {
               {filteredGuests.map((guest: any) => {
                 const RsvpIcon = rsvpIcons[guest.rsvp_status as keyof typeof rsvpIcons]
                 const event = events.find((e: any) => e.id === guest.event)
+                const totalGuestAttendees = 1 + (guest.plus_ones || 0)
 
                 return (
                   <div key={guest.id} className="flex items-center justify-between p-4 border rounded-lg">
@@ -317,9 +336,11 @@ export default function GuestsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Guest
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/guests/${guest.id}/edit`}>
+                                <Edit className="w-4 h-4 mr-2" />
+                                Edit Guest
+                              </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem>
                               <Mail className="w-4 h-4 mr-2" />
@@ -367,9 +388,17 @@ export default function GuestsPage() {
                             <RsvpIcon className="w-3 h-3 mr-1" />
                             {guest.rsvp_status}
                           </Badge>
-                          {guest.plus_ones > 0 && <Badge variant="outline">+{guest.plus_ones} guests</Badge>}
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                            <UserPlus className="w-3 h-3 mr-1" />
+                            {totalGuestAttendees} attendee{totalGuestAttendees > 1 ? "s" : ""}
+                          </Badge>
+                          {guest.plus_ones > 0 && (
+                            <Badge variant="secondary">
+                              +{guest.plus_ones} guest{guest.plus_ones > 1 ? "s" : ""}
+                            </Badge>
+                          )}
                           {guest.checked_in && (
-                            <Badge className="bg-blue-100 text-blue-800">
+                            <Badge className="bg-purple-100 text-purple-800">
                               <UserCheck className="w-3 h-3 mr-1" />
                               Checked In
                             </Badge>

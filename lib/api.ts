@@ -1,203 +1,256 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888/api"
 
-// Helper function to get auth headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("token")
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
-  }
-}
+class ApiClient {
+  private baseURL: string
+  private token: string | null = null
 
-// Helper function to handle API responses
-const handleResponse = async (response: Response) => {
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "API request failed")
+  constructor() {
+    this.baseURL = API_BASE_URL
+    if (typeof window !== "undefined") {
+      this.token = localStorage.getItem("token")
+    }
   }
-  return response.json()
-}
 
-// Authentication API
-export const authAPI = {
-  signup: async (userData: any) => {
-    const response = await fetch(`${API_BASE_URL}/auth/signup/`, {
+  private getHeaders() {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    }
+
+    if (this.token) {
+      headers["Authorization"] = `Bearer ${this.token}`
+    }
+
+    return headers
+  }
+
+  setToken(token: string) {
+    this.token = token
+    if (typeof window !== "undefined") {
+      localStorage.setItem("token", token)
+    }
+  }
+
+  clearToken() {
+    this.token = null
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token")
+    }
+  }
+
+  async request(endpoint: string, options: RequestInit = {}) {
+    const url = `${this.baseURL}${endpoint}`
+    const config: RequestInit = {
+      headers: this.getHeaders(),
+      ...options,
+    }
+
+    try {
+      const response = await fetch(url, config)
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: "Network error" }))
+        throw new Error(error.message || `HTTP error! status: ${response.status}`)
+      }
+
+      return response.json()
+    } catch (error) {
+      console.error(`API request failed: ${endpoint}`, error)
+      throw error
+    }
+  }
+
+  // Auth methods
+  async register(userData: any) {
+    return this.request("/auth/signup/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(userData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  signin: async (credentials: { email: string; password: string }) => {
-    const response = await fetch(`${API_BASE_URL}/auth/signin/`, {
+  async login(credentials: { email: string; password: string }) {
+    return this.request("/auth/signin/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(credentials),
     })
-    return handleResponse(response)
-  },
-}
+  }
 
-// Events API
-export const eventsAPI = {
-  getEvents: async (params?: Record<string, string>) => {
-    const queryString = params ? new URLSearchParams(params).toString() : ""
-    const response = await fetch(`${API_BASE_URL}/events/?${queryString}`, {
-      headers: getAuthHeaders(),
-    })
-    return handleResponse(response)
-  },
-
-  createEvent: async (eventData: any) => {
-    const response = await fetch(`${API_BASE_URL}/events/`, {
+  async logout() {
+    return this.request("/auth/logout/", {
       method: "POST",
-      headers: getAuthHeaders(),
+    })
+  }
+
+  async getUser() {
+    return this.request("/auth/user/")
+  }
+
+  // Auth Profile methods
+  async getProfile() {
+    return this.request("/auth/profile/")
+  }
+
+  async updateProfile(profileData: any) {
+    return this.request("/auth/profile/", {
+      method: "PUT",
+      body: JSON.stringify(profileData),
+    })
+  }
+
+  // Event methods
+  async getEvents(params?: Record<string, string>) {
+    const queryString = params ? new URLSearchParams(params).toString() : ""
+    const endpoint = queryString ? `/events/?${queryString}` : "/events/"
+    return this.request(endpoint)
+  }
+
+  async getEvent(id: number) {
+    return this.request(`/events/${id}/`)
+  }
+
+  async createEvent(eventData: any) {
+    return this.request("/events/", {
+      method: "POST",
       body: JSON.stringify(eventData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  getEvent: async (id: number) => {
-    const response = await fetch(`${API_BASE_URL}/events/${id}/`, {
-      headers: getAuthHeaders(),
-    })
-    return handleResponse(response)
-  },
-
-  updateEvent: async (id: number, eventData: any) => {
-    const response = await fetch(`${API_BASE_URL}/events/${id}/`, {
+  async updateEvent(id: number, eventData: any) {
+    return this.request(`/events/${id}/`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify(eventData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  deleteEvent: async (id: number) => {
-    const response = await fetch(`${API_BASE_URL}/events/${id}/`, {
+  async deleteEvent(id: number) {
+    return this.request(`/events/${id}/`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
     })
-    if (!response.ok) {
-      throw new Error("Failed to delete event")
-    }
-  },
-}
+  }
 
-// Budget API
-export const budgetAPI = {
-  getBudgetItems: async (params?: Record<string, string>) => {
+  // Budget methods
+  async getBudgetItems(params?: Record<string, string>) {
     const queryString = params ? new URLSearchParams(params).toString() : ""
-    const response = await fetch(`${API_BASE_URL}/budget/?${queryString}`, {
-      headers: getAuthHeaders(),
-    })
-    return handleResponse(response)
-  },
+    const endpoint = queryString ? `/budget/?${queryString}` : "/budget/"
+    return this.request(endpoint)
+  }
 
-  createBudgetItem: async (budgetData: any) => {
-    const response = await fetch(`${API_BASE_URL}/budget/`, {
+  async getBudgetItem(id: number) {
+    return this.request(`/budget/${id}/`)
+  }
+
+  async createBudgetItem(budgetData: any) {
+    return this.request("/budget/", {
       method: "POST",
-      headers: getAuthHeaders(),
       body: JSON.stringify(budgetData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  updateBudgetItem: async (id: number, budgetData: any) => {
-    const response = await fetch(`${API_BASE_URL}/budget/${id}/`, {
+  async updateBudgetItem(id: number, budgetData: any) {
+    return this.request(`/budget/${id}/`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify(budgetData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  deleteBudgetItem: async (id: number) => {
-    const response = await fetch(`${API_BASE_URL}/budget/${id}/`, {
+  async deleteBudgetItem(id: number) {
+    return this.request(`/budget/${id}/`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
     })
-    if (!response.ok) {
-      throw new Error("Failed to delete budget item")
-    }
-  },
-}
+  }
 
-// Guests API
-export const guestsAPI = {
-  getGuests: async (params?: Record<string, string>) => {
+  // Guest methods
+  async getGuests(params?: Record<string, string>) {
     const queryString = params ? new URLSearchParams(params).toString() : ""
-    const response = await fetch(`${API_BASE_URL}/guests/?${queryString}`, {
-      headers: getAuthHeaders(),
-    })
-    return handleResponse(response)
-  },
+    const endpoint = queryString ? `/guests/?${queryString}` : "/guests/"
+    return this.request(endpoint)
+  }
 
-  createGuest: async (guestData: any) => {
-    const response = await fetch(`${API_BASE_URL}/guests/`, {
+  async getGuest(id: number) {
+    return this.request(`/guests/${id}/`)
+  }
+
+  async createGuest(guestData: any) {
+    return this.request("/guests/", {
       method: "POST",
-      headers: getAuthHeaders(),
       body: JSON.stringify(guestData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  updateGuest: async (id: number, guestData: any) => {
-    const response = await fetch(`${API_BASE_URL}/guests/${id}/`, {
+  async updateGuest(id: number, guestData: any) {
+    return this.request(`/guests/${id}/`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify(guestData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  deleteGuest: async (id: number) => {
-    const response = await fetch(`${API_BASE_URL}/guests/${id}/`, {
+  async deleteGuest(id: number) {
+    return this.request(`/guests/${id}/`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
     })
-    if (!response.ok) {
-      throw new Error("Failed to delete guest")
-    }
-  },
-}
+  }
 
-// Vendors API
-export const vendorsAPI = {
-  getVendors: async (params?: Record<string, string>) => {
+  // Vendor methods
+  async getVendors(params?: Record<string, string>) {
     const queryString = params ? new URLSearchParams(params).toString() : ""
-    const response = await fetch(`${API_BASE_URL}/vendors/?${queryString}`, {
-      headers: getAuthHeaders(),
-    })
-    return handleResponse(response)
-  },
+    const endpoint = queryString ? `/vendors/?${queryString}` : "/vendors/"
+    return this.request(endpoint)
+  }
 
-  createVendor: async (vendorData: any) => {
-    const response = await fetch(`${API_BASE_URL}/vendors/`, {
+  async getVendor(id: number) {
+    return this.request(`/vendors/${id}/`)
+  }
+
+  async createVendor(vendorData: any) {
+    return this.request("/vendors/", {
       method: "POST",
-      headers: getAuthHeaders(),
       body: JSON.stringify(vendorData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  updateVendor: async (id: number, vendorData: any) => {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/`, {
+  async updateVendor(id: number, vendorData: any) {
+    return this.request(`/vendors/${id}/`, {
       method: "PUT",
-      headers: getAuthHeaders(),
       body: JSON.stringify(vendorData),
     })
-    return handleResponse(response)
-  },
+  }
 
-  deleteVendor: async (id: number) => {
-    const response = await fetch(`${API_BASE_URL}/vendors/${id}/`, {
+  async deleteVendor(id: number) {
+    return this.request(`/vendors/${id}/`, {
       method: "DELETE",
-      headers: getAuthHeaders(),
     })
-    if (!response.ok) {
-      throw new Error("Failed to delete vendor")
-    }
-  },
+  }
+
+  // Analytics methods
+  async getEventAnalytics(eventId: number) {
+    return this.request(`/analytics/event/${eventId}/`)
+  }
+
+  async getOverallAnalytics() {
+    return this.request("/analytics/overall/")
+  }
+
+  // WhatsApp methods
+  async createWhatsAppGroup(eventId: number) {
+    return this.request("/whatsapp/create-group/", {
+      method: "POST",
+      body: JSON.stringify({ event_id: eventId }),
+    })
+  }
+
+  async getEventContacts(eventId: number) {
+    return this.request(`/whatsapp/contacts/${eventId}/`)
+  }
+
+  async getWhatsAppSettings() {
+    return this.request("/whatsapp/settings/")
+  }
+
+  async updateWhatsAppSettings(settingsData: any) {
+    return this.request("/whatsapp/settings/", {
+      method: "PUT",
+      body: JSON.stringify(settingsData),
+    })
+  }
 }
+
+export const apiClient = new ApiClient()

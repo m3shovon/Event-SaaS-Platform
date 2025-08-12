@@ -7,49 +7,42 @@ interface BudgetItem {
   item_name: string
   estimated_cost: number
   actual_cost: number
-  vendor: string
-  status: string
-  due_date: string
   notes: string
+  status: string
   created_at: string
 }
 
 interface BudgetState {
   budgetItems: BudgetItem[]
-  totalBudget: number
-  totalSpent: number
+  currentBudgetItem: BudgetItem | null
   isLoading: boolean
   error: string | null
 }
 
 const initialState: BudgetState = {
   budgetItems: [],
-  totalBudget: 0,
-  totalSpent: 0,
+  currentBudgetItem: null,
   isLoading: false,
   error: null,
 }
 
-export const fetchBudgetItems = createAsyncThunk(
-  "budget/fetchBudgetItems",
-  async (eventId: number, { rejectWithValue }) => {
-    try {
-      const token = localStorage.getItem("token")
-      const response = await fetch(`http://localhost:8888/api/budget/?event=${eventId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        return rejectWithValue(data)
-      }
-      return data
-    } catch (error) {
-      return rejectWithValue({ message: "Network error" })
+export const fetchBudgetItems = createAsyncThunk("budget/fetchBudgetItems", async (_, { rejectWithValue }) => {
+  try {
+    const token = localStorage.getItem("token")
+    const response = await fetch("http://localhost:8888/api/budget/", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      return rejectWithValue(data)
     }
-  },
-)
+    return Array.isArray(data) ? data : data.results || []
+  } catch (error) {
+    return rejectWithValue({ message: "Network error" })
+  }
+})
 
 export const createBudgetItem = createAsyncThunk(
   "budget/createBudgetItem",
@@ -143,6 +136,9 @@ const budgetSlice = createSlice({
     clearError: (state) => {
       state.error = null
     },
+    setCurrentBudgetItem: (state, action) => {
+      state.currentBudgetItem = action.payload
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -152,9 +148,7 @@ const budgetSlice = createSlice({
       })
       .addCase(fetchBudgetItems.fulfilled, (state, action) => {
         state.isLoading = false
-        state.budgetItems = action.payload
-        state.totalBudget = action.payload.reduce((sum: number, item: BudgetItem) => sum + item.estimated_cost, 0)
-        state.totalSpent = action.payload.reduce((sum: number, item: BudgetItem) => sum + item.actual_cost, 0)
+        state.budgetItems = Array.isArray(action.payload) ? action.payload : []
       })
       .addCase(fetchBudgetItems.rejected, (state, action) => {
         state.isLoading = false
@@ -168,8 +162,6 @@ const budgetSlice = createSlice({
       .addCase(createBudgetItem.fulfilled, (state, action) => {
         state.isLoading = false
         state.budgetItems.push(action.payload)
-        state.totalBudget += action.payload.estimated_cost
-        state.totalSpent += action.payload.actual_cost
       })
       .addCase(createBudgetItem.rejected, (state, action) => {
         state.isLoading = false
@@ -179,23 +171,16 @@ const budgetSlice = createSlice({
       .addCase(updateBudgetItem.fulfilled, (state, action) => {
         const index = state.budgetItems.findIndex((item) => item.id === action.payload.id)
         if (index !== -1) {
-          const oldItem = state.budgetItems[index]
-          state.totalBudget = state.totalBudget - oldItem.estimated_cost + action.payload.estimated_cost
-          state.totalSpent = state.totalSpent - oldItem.actual_cost + action.payload.actual_cost
           state.budgetItems[index] = action.payload
         }
       })
       // Delete Budget Item
       .addCase(deleteBudgetItem.fulfilled, (state, action) => {
-        const item = state.budgetItems.find((item) => item.id === action.payload)
-        if (item) {
-          state.totalBudget -= item.estimated_cost
-          state.totalSpent -= item.actual_cost
-        }
         state.budgetItems = state.budgetItems.filter((item) => item.id !== action.payload)
       })
       // Fetch Budget Item
       .addCase(fetchBudgetItem.fulfilled, (state, action) => {
+        state.currentBudgetItem = action.payload
         const index = state.budgetItems.findIndex((item) => item.id === action.payload.id)
         if (index !== -1) {
           state.budgetItems[index] = action.payload
@@ -206,5 +191,5 @@ const budgetSlice = createSlice({
   },
 })
 
-export const { clearError } = budgetSlice.actions
+export const { clearError, setCurrentBudgetItem } = budgetSlice.actions
 export default budgetSlice.reducer

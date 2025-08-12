@@ -11,33 +11,45 @@ interface Guest {
   plus_ones: number
   dietary_restrictions: string
   notes: string
-  invitation_sent: boolean
   checked_in: boolean
+  invitation_sent: boolean
+  invitation_sent_date: string | null
+  check_in_time: string | null
   created_at: string
+  updated_at: string
+  total_attendees: number
+}
+
+interface GuestStats {
+  total_guests: number
+  total_attendees: number
+  confirmed_guests: number
+  confirmed_attendees: number
+  pending_guests: number
+  declined_guests: number
+  checked_in_guests: number
 }
 
 interface GuestState {
   guests: Guest[]
-  totalGuests: number
-  confirmedGuests: number
-  pendingRSVPs: number
+  currentGuest: Guest | null
+  stats: GuestStats | null
   isLoading: boolean
   error: string | null
 }
 
 const initialState: GuestState = {
   guests: [],
-  totalGuests: 0,
-  confirmedGuests: 0,
-  pendingRSVPs: 0,
+  currentGuest: null,
+  stats: null,
   isLoading: false,
   error: null,
 }
 
-export const fetchGuests = createAsyncThunk("guests/fetchGuests", async (eventId: number, { rejectWithValue }) => {
+export const fetchGuests = createAsyncThunk("guests/fetchGuests", async (_, { rejectWithValue }) => {
   try {
     const token = localStorage.getItem("token")
-    const response = await fetch(`http://localhost:8888/api/guests/?event=${eventId}`, {
+    const response = await fetch("http://localhost:8888/api/guests/", {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -141,6 +153,9 @@ const guestSlice = createSlice({
     clearError: (state) => {
       state.error = null
     },
+    setCurrentGuest: (state, action) => {
+      state.currentGuest = action.payload
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -150,10 +165,15 @@ const guestSlice = createSlice({
       })
       .addCase(fetchGuests.fulfilled, (state, action) => {
         state.isLoading = false
-        state.guests = action.payload
-        state.totalGuests = action.payload.length
-        state.confirmedGuests = action.payload.filter((guest: Guest) => guest.rsvp_status === "confirmed").length
-        state.pendingRSVPs = action.payload.filter((guest: Guest) => guest.rsvp_status === "pending").length
+        if (action.payload.results) {
+          // Paginated response
+          state.guests = action.payload.results
+          state.stats = action.payload.stats
+        } else {
+          // Direct array response
+          state.guests = Array.isArray(action.payload) ? action.payload : []
+          state.stats = null
+        }
       })
       .addCase(fetchGuests.rejected, (state, action) => {
         state.isLoading = false
@@ -167,12 +187,6 @@ const guestSlice = createSlice({
       .addCase(createGuest.fulfilled, (state, action) => {
         state.isLoading = false
         state.guests.push(action.payload)
-        state.totalGuests += 1
-        if (action.payload.rsvp_status === "confirmed") {
-          state.confirmedGuests += 1
-        } else if (action.payload.rsvp_status === "pending") {
-          state.pendingRSVPs += 1
-        }
       })
       .addCase(createGuest.rejected, (state, action) => {
         state.isLoading = false
@@ -182,36 +196,16 @@ const guestSlice = createSlice({
       .addCase(updateGuest.fulfilled, (state, action) => {
         const index = state.guests.findIndex((guest) => guest.id === action.payload.id)
         if (index !== -1) {
-          const oldGuest = state.guests[index]
-          // Update counters
-          if (oldGuest.rsvp_status === "confirmed" && action.payload.rsvp_status !== "confirmed") {
-            state.confirmedGuests -= 1
-          } else if (oldGuest.rsvp_status !== "confirmed" && action.payload.rsvp_status === "confirmed") {
-            state.confirmedGuests += 1
-          }
-          if (oldGuest.rsvp_status === "pending" && action.payload.rsvp_status !== "pending") {
-            state.pendingRSVPs -= 1
-          } else if (oldGuest.rsvp_status !== "pending" && action.payload.rsvp_status === "pending") {
-            state.pendingRSVPs += 1
-          }
           state.guests[index] = action.payload
         }
       })
       // Delete Guest
       .addCase(deleteGuest.fulfilled, (state, action) => {
-        const guest = state.guests.find((guest) => guest.id === action.payload)
-        if (guest) {
-          state.totalGuests -= 1
-          if (guest.rsvp_status === "confirmed") {
-            state.confirmedGuests -= 1
-          } else if (guest.rsvp_status === "pending") {
-            state.pendingRSVPs -= 1
-          }
-        }
         state.guests = state.guests.filter((guest) => guest.id !== action.payload)
       })
       // Fetch Guest
       .addCase(fetchGuest.fulfilled, (state, action) => {
+        state.currentGuest = action.payload
         const index = state.guests.findIndex((guest) => guest.id === action.payload.id)
         if (index !== -1) {
           state.guests[index] = action.payload
@@ -222,5 +216,5 @@ const guestSlice = createSlice({
   },
 })
 
-export const { clearError } = guestSlice.actions
+export const { clearError, setCurrentGuest } = guestSlice.actions
 export default guestSlice.reducer

@@ -12,7 +12,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'first_name', 'last_name', 'email', 'password', 'confirm_password',
-            'phone', 'business_name', 'business_type', 'country', 'city',
+            'phone', 'whatsapp_number', 'business_name', 'business_type', 'country', 'city',
             'subscribe_newsletter'
         ]
     
@@ -53,7 +53,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'first_name', 'last_name', 'email', 'phone',
+            'id', 'first_name', 'last_name', 'email', 'phone', 'whatsapp_number',
             'business_name', 'business_type', 'country', 'city',
             'subscription_plan', 'is_verified', 'created_at'
         ]
@@ -79,10 +79,11 @@ class BudgetItemSerializer(serializers.ModelSerializer):
 
 # Guest Serializers
 class GuestSerializer(serializers.ModelSerializer):
+    total_attendees = serializers.ReadOnlyField()
     class Meta:
         model = Guest
         fields = '__all__'
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'total_attendees']
 
 # Vendor Serializers
 class VendorSerializer(serializers.ModelSerializer):

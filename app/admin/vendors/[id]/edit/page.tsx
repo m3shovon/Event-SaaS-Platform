@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, MapPin } from "lucide-react"
-import { createVendor } from "@/store/slices/vendorSlice"
+import { fetchVendor, updateVendor } from "@/store/slices/vendorSlice"
 import { toast } from "sonner"
 import Link from "next/link"
 
@@ -38,10 +38,13 @@ const priceRanges = [
   { value: "luxury", label: "Luxury (৳৳৳৳)" },
 ]
 
-export default function NewVendorPage() {
+export default function EditVendorPage() {
+  const params = useParams()
   const router = useRouter()
   const dispatch = useDispatch()
-  const { isLoading } = useSelector((state: any) => state.vendors)
+  const vendorId = Number.parseInt(params.id as string)
+
+  const { currentVendor, isLoading } = useSelector((state: any) => state.vendors)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -57,6 +60,28 @@ export default function NewVendorPage() {
     is_preferred: false,
   })
 
+  useEffect(() => {
+    dispatch(fetchVendor(vendorId))
+  }, [dispatch, vendorId])
+
+  useEffect(() => {
+    if (currentVendor) {
+      setFormData({
+        name: currentVendor.name || "",
+        category: currentVendor.category || "",
+        email: currentVendor.email || "",
+        phone: currentVendor.phone || "",
+        address: currentVendor.address || "",
+        website: currentVendor.website || "",
+        rating: currentVendor.rating?.toString() || "0",
+        price_range: currentVendor.price_range || "",
+        services: currentVendor.services || "",
+        notes: currentVendor.notes || "",
+        is_preferred: currentVendor.is_preferred || false,
+      })
+    }
+  }, [currentVendor])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -67,21 +92,35 @@ export default function NewVendorPage() {
 
     try {
       await dispatch(
-        createVendor({
-          ...formData,
-          rating: Number.parseFloat(formData.rating),
+        updateVendor({
+          id: vendorId,
+          vendorData: {
+            ...formData,
+            rating: Number.parseFloat(formData.rating),
+          },
         }),
       ).unwrap()
 
-      toast.success("Vendor added successfully")
+      toast.success("Vendor updated successfully")
       router.push("/admin/vendors")
     } catch (error: any) {
-      toast.error(error.message || "Failed to add vendor")
+      toast.error(error.message || "Failed to update vendor")
     }
   }
 
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  if (!currentVendor) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -94,8 +133,8 @@ export default function NewVendorPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Add Vendor</h1>
-          <p className="text-muted-foreground">Add a new vendor to your directory</p>
+          <h1 className="text-3xl font-bold tracking-tight">Edit Vendor</h1>
+          <p className="text-muted-foreground">Update vendor details</p>
         </div>
       </div>
 
@@ -106,7 +145,7 @@ export default function NewVendorPage() {
             <MapPin className="h-5 w-5" />
             Vendor Details
           </CardTitle>
-          <CardDescription>Enter the details for the new vendor</CardDescription>
+          <CardDescription>Update the vendor information</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -247,7 +286,7 @@ export default function NewVendorPage() {
 
             <div className="flex gap-4">
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? "Adding..." : "Add Vendor"}
+                {isLoading ? "Updating..." : "Update Vendor"}
               </Button>
               <Link href="/admin/vendors">
                 <Button type="button" variant="outline">

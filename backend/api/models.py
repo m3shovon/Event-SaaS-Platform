@@ -22,6 +22,7 @@ class User(AbstractUser):
     
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=20, blank=True)
+    whatsapp_number = models.CharField(max_length=20, blank=True)
     business_name = models.CharField(max_length=200)
     business_type = models.CharField(max_length=50, choices=BUSINESS_TYPE_CHOICES)
     country = models.CharField(max_length=100, default='Bangladesh')
@@ -147,7 +148,7 @@ class Guest(models.Model):
     
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='guests')
     name = models.CharField(max_length=200)
-    email = models.EmailField(blank=True)
+    email = models.EmailField(null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
     rsvp_status = models.CharField(max_length=20, choices=RSVP_CHOICES, default='pending')
@@ -166,6 +167,11 @@ class Guest(models.Model):
     
     def __str__(self):
         return f"{self.name} - {self.event.name}"
+    
+    @property
+    def total_attendees(self):
+        """Returns total attendees for this guest (guest + plus ones)"""
+        return 1 + self.plus_ones
 
 # Vendor Model
 class Vendor(models.Model):

@@ -1,16 +1,18 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useDispatch, useSelector } from "react-redux"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Users, ArrowLeft, Mail, Phone } from "lucide-react"
+import { ArrowLeft, Users } from "lucide-react"
 import { createGuest } from "@/store/slices/guestSlice"
 import { fetchEvents } from "@/store/slices/eventSlice"
 import { toast } from "sonner"
@@ -33,8 +35,16 @@ const rsvpStatuses = [
 ]
 
 export default function NewGuestPage() {
+  const router = useRouter()
+  const dispatch = useDispatch()
+  const searchParams = useSearchParams()
+  const preselectedEventId = searchParams.get("event")
+
+  const { events } = useSelector((state: any) => state.events)
+  const { isLoading } = useSelector((state: any) => state.guests)
+
   const [formData, setFormData] = useState({
-    event: "",
+    event: preselectedEventId || "",
     name: "",
     email: "",
     phone: "",
@@ -46,65 +56,41 @@ export default function NewGuestPage() {
     invitation_sent: false,
     checked_in: false,
   })
-  const [isLoading, setIsLoading] = useState(false)
-  const [errors, setErrors] = useState({})
-
-  const router = useRouter()
-  const dispatch = useDispatch()
-  const { events } = useSelector((state: any) => state.events)
 
   useEffect(() => {
     dispatch(fetchEvents())
   }, [dispatch])
 
-  const validateForm = () => {
-    const newErrors = {}
-
-    if (!formData.event) newErrors.event = "Event is required"
-    if (!formData.name.trim()) newErrors.name = "Guest name is required"
-    if (!formData.category) newErrors.category = "Category is required"
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Valid email is required"
-    }
-    if (Number.parseInt(formData.plus_ones) < 0) {
-      newErrors.plus_ones = "Plus ones cannot be negative"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateForm()) return
 
-    setIsLoading(true)
+    if (!formData.event || !formData.name || !formData.category) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+
     try {
-      const guestData = {
-        ...formData,
-        event: Number.parseInt(formData.event),
-        plus_ones: Number.parseInt(formData.plus_ones),
-      }
+      await dispatch(
+        createGuest({
+          ...formData,
+          plus_ones: Number.parseInt(formData.plus_ones),
+        }),
+      ).unwrap()
 
-      await dispatch(createGuest(guestData)).unwrap()
-      toast.success("Guest added successfully!")
+      toast.success("Guest added successfully")
       router.push("/admin/guests")
-    } catch (error) {
+    } catch (error: any) {
       toast.error(error.message || "Failed to add guest")
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  const handleInputChange = (field, value) => {
+  const handleInputChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }))
-    }
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Link href="/admin/guests">
           <Button variant="outline" size="icon">
@@ -117,40 +103,71 @@ export default function NewGuestPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Basic Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Guest Information
-            </CardTitle>
-            <CardDescription>Basic details about the guest</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Form */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Guest Details
+          </CardTitle>
+          <CardDescription>Enter the details for the new guest</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="event">Event *</Label>
                 <Select value={formData.event} onValueChange={(value) => handleInputChange("event", value)}>
-                  <SelectTrigger className={errors.event ? "border-red-500" : ""}>
-                    <SelectValue placeholder="Select event" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an event" />
                   </SelectTrigger>
                   <SelectContent>
-                    {events.map((event) => (
+                    {events.map((event: any) => (
                       <SelectItem key={event.id} value={event.id.toString()}>
                         {event.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.event && <p className="text-sm text-red-500">{errors.event}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="name">Guest Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                  placeholder="Enter guest name"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  placeholder="guest@example.com"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                  placeholder="+880 1234 567890"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="category">Category *</Label>
                 <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
-                  <SelectTrigger className={errors.category ? "border-red-500" : ""}>
-                    <SelectValue placeholder="Select category" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
                   <SelectContent>
                     {guestCategories.map((category) => (
@@ -160,69 +177,13 @@ export default function NewGuestPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                {errors.category && <p className="text-sm text-red-500">{errors.category}</p>}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="name">Guest Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                className={errors.name ? "border-red-500" : ""}
-                placeholder="Enter guest name"
-              />
-              {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    className={`pl-8 ${errors.email ? "border-red-500" : ""}`}
-                    placeholder="guest@example.com"
-                  />
-                </div>
-                {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <div className="relative">
-                  <Phone className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value)}
-                    className="pl-8"
-                    placeholder="+880 1XXX-XXXXXX"
-                  />
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* RSVP & Additional Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>RSVP & Additional Information</CardTitle>
-            <CardDescription>RSVP status and other details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="rsvp_status">RSVP Status</Label>
                 <Select value={formData.rsvp_status} onValueChange={(value) => handleInputChange("rsvp_status", value)}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select RSVP status" />
                   </SelectTrigger>
                   <SelectContent>
                     {rsvpStatuses.map((status) => (
@@ -235,29 +196,28 @@ export default function NewGuestPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="plus_ones">Plus Ones</Label>
+                <Label htmlFor="plus_ones">Number of Additional Guests</Label>
                 <Input
                   id="plus_ones"
                   type="number"
+                  min="0"
+                  max="10"
                   value={formData.plus_ones}
                   onChange={(e) => handleInputChange("plus_ones", e.target.value)}
-                  className={errors.plus_ones ? "border-red-500" : ""}
                   placeholder="0"
-                  min="0"
                 />
-                {errors.plus_ones && <p className="text-sm text-red-500">{errors.plus_ones}</p>}
+                <p className="text-sm text-muted-foreground">How many additional people will attend with this guest?</p>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="dietary_restrictions">Dietary Restrictions</Label>
-              <Textarea
-                id="dietary_restrictions"
-                value={formData.dietary_restrictions}
-                onChange={(e) => handleInputChange("dietary_restrictions", e.target.value)}
-                placeholder="Any dietary restrictions or allergies..."
-                rows={2}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="dietary_restrictions">Dietary Restrictions</Label>
+                <Input
+                  id="dietary_restrictions"
+                  value={formData.dietary_restrictions}
+                  onChange={(e) => handleInputChange("dietary_restrictions", e.target.value)}
+                  placeholder="e.g., Vegetarian, Halal, Allergies"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -266,7 +226,7 @@ export default function NewGuestPage() {
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => handleInputChange("notes", e.target.value)}
-                placeholder="Any additional notes about the guest..."
+                placeholder="Additional notes about the guest"
                 rows={3}
               />
             </div>
@@ -276,7 +236,7 @@ export default function NewGuestPage() {
                 <Checkbox
                   id="invitation_sent"
                   checked={formData.invitation_sent}
-                  onCheckedChange={(checked) => handleInputChange("invitation_sent", checked)}
+                  onCheckedChange={(checked) => handleInputChange("invitation_sent", checked as boolean)}
                 />
                 <Label htmlFor="invitation_sent">Invitation sent</Label>
               </div>
@@ -285,24 +245,25 @@ export default function NewGuestPage() {
                 <Checkbox
                   id="checked_in"
                   checked={formData.checked_in}
-                  onCheckedChange={(checked) => handleInputChange("checked_in", checked)}
+                  onCheckedChange={(checked) => handleInputChange("checked_in", checked as boolean)}
                 />
                 <Label htmlFor="checked_in">Checked in at event</Label>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Submit Buttons */}
-        <div className="flex items-center justify-end space-x-4">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Adding..." : "Add Guest"}
-          </Button>
-        </div>
-      </form>
+            <div className="flex gap-4">
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Adding..." : "Add Guest"}
+              </Button>
+              <Link href="/admin/guests">
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </Link>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   )
 }

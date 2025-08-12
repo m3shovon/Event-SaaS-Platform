@@ -1,361 +1,512 @@
 "use client"
 
-import { useEffect } from "react"
-import { useDispatch, useSelector } from "react-redux"
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import {
   Calendar,
   DollarSign,
   Users,
+  MapPin,
+  Plus,
   TrendingUp,
-  TrendingDown,
-  Clock,
   CheckCircle,
-  AlertTriangle,
+  Clock,
   Heart,
   Building,
   Briefcase,
   PartyPopper,
-  Eye,
-  Edit,
-  MoreHorizontal,
-  Plus,
+  AlertCircle,
 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { fetchEvents } from "@/store/slices/eventSlice"
-import { fetchBudgetItems } from "@/store/slices/budgetSlice"
-import { fetchGuests } from "@/store/slices/guestSlice"
-import { fetchVendors } from "@/store/slices/vendorSlice"
 import Link from "next/link"
+import { apiClient } from "@/lib/api"
 import { toast } from "sonner"
 
 const categoryIcons = {
   wedding: Heart,
-  corporate: Briefcase,
   community: Building,
+  corporate: Briefcase,
   social: PartyPopper,
 }
 
-const categoryColors = {
-  wedding: "bg-pink-500",
-  corporate: "bg-blue-500",
-  community: "bg-green-500",
-  social: "bg-purple-500",
+const categoryNames = {
+  wedding: "Wedding Planning",
+  community: "Community Management",
+  corporate: "Corporate Events",
+  social: "Social Events",
+}
+
+interface Event {
+  id: number
+  name: string
+  category: string
+  date: string
+  expected_guests: number
+  status: string
+  created_at: string
+}
+
+interface BudgetItem {
+  id: number
+  event: number
+  category: string
+  item_name: string
+  estimated_cost: string
+  actual_cost: string
+}
+
+interface Guest {
+  id: number
+  event: number
+  name: string
+  email: string
+  phone: string
+  rsvp_status: string
+  checked_in: boolean
+}
+
+interface Vendor {
+  id: number
+  name: string
+  category: string
+  rating: string
+  is_preferred: boolean
 }
 
 export default function AdminDashboardClient() {
-  const dispatch = useDispatch()
-  const { events, isLoading: eventsLoading } = useSelector((state: any) => state.events)
-  const { budgetItems } = useSelector((state: any) => state.budget)
-  const { guests } = useSelector((state: any) => state.guests)
-  const { vendors } = useSelector((state: any) => state.vendors)
+  const [events, setEvents] = useState<Event[]>([])
+  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([])
+  const [guests, setGuests] = useState<Guest[]>([])
+  const [vendors, setVendors] = useState<Vendor[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState("all")
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        await dispatch(fetchEvents()).unwrap()
-        await dispatch(fetchBudgetItems()).unwrap()
-        await dispatch(fetchGuests()).unwrap()
-        await dispatch(fetchVendors()).unwrap()
-      } catch (error) {
-        toast.error("Failed to load dashboard data")
-      }
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // Load all data in parallel
+      const [eventsResponse, budgetResponse, guestsResponse, vendorsResponse] = await Promise.all([
+        apiClient.getEvents().catch(() => ({ results: [] })),
+        apiClient.getBudgetItems().catch(() => ({ results: [] })),
+        apiClient.getGuests().catch(() => ({ results: [] })),
+        apiClient.getVendors().catch(() => ({ results: [] })),
+      ])
+
+      // Handle different response formats
+      const eventsData = eventsResponse.results || eventsResponse || []
+      const budgetData = budgetResponse.results || budgetResponse || []
+      const guestsData = guestsResponse.results || guestsResponse || []
+      const vendorsData = vendorsResponse.results || vendorsResponse || []
+
+      setEvents(eventsData)
+      setBudgetItems(budgetData)
+      setGuests(guestsData)
+      setVendors(vendorsData)
+
+      console.log("Dashboard data loaded:", {
+        events: eventsData.length,
+        budget: budgetData.length,
+        guests: guestsData.length,
+        vendors: vendorsData.length,
+      })
+    } catch (error: any) {
+      console.error("Error loading dashboard data:", error)
+      setError(error.message || "Failed to load dashboard data")
+      toast.error("Failed to load dashboard data")
+    } finally {
+      setIsLoading(false)
     }
-    loadData()
-  }, [dispatch])
+  }
 
-  // Calculate stats from real data
-  const totalBudget = budgetItems.reduce((sum: number, item: any) => sum + Number.parseFloat(item.estimated_cost), 0)
-  const totalSpent = budgetItems.reduce((sum: number, item: any) => sum + Number.parseFloat(item.actual_cost), 0)
+  const filteredEvents =
+    selectedCategory === "all" ? events : events.filter((event) => event.category === selectedCategory)
+
+  const totalBudget = budgetItems.reduce((sum, item) => sum + Number.parseFloat(item.estimated_cost || "0"), 0)
+  const totalSpent = budgetItems.reduce((sum, item) => sum + Number.parseFloat(item.actual_cost || "0"), 0)
   const totalGuests = guests.length
-  const confirmedGuests = guests.filter((guest: any) => guest.rsvp_status === "confirmed").length
-  const activeVendors = vendors.filter((vendor: any) => vendor.is_preferred).length
+  const confirmedGuests = guests.filter((guest) => guest.rsvp_status === "confirmed").length
+  const pendingGuests = guests.filter((guest) => guest.rsvp_status === "pending").length
+  const checkedInGuests = guests.filter((guest) => guest.checked_in).length
 
-  const stats = [
-    {
-      title: "Total Events",
-      value: events.length.toString(),
-      change: "+12%",
-      trend: "up",
-      icon: Calendar,
-      description: "from last month",
-    },
-    {
-      title: "Total Budget",
-      value: `৳${totalBudget.toLocaleString()}`,
-      change: "+18%",
-      trend: "up",
-      icon: DollarSign,
-      description: "estimated cost",
-    },
-    {
-      title: "Total Guests",
-      value: totalGuests.toString(),
-      change: "+7%",
-      trend: "up",
-      icon: Users,
-      description: `${confirmedGuests} confirmed`,
-    },
-    {
-      title: "Active Vendors",
-      value: activeVendors.toString(),
-      change: "-2%",
-      trend: "down",
-      icon: TrendingUp,
-      description: "preferred vendors",
-    },
-  ]
-
-  if (eventsLoading) {
+  if (isLoading) {
     return (
-      <div className="space-y-8">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Loading dashboard...</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="h-32 bg-gray-200 rounded"></div>
-            </div>
-          ))}
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Error Loading Dashboard</h2>
+          <p className="text-slate-600 mb-4">{error}</p>
+          <Button onClick={loadDashboardData}>Try Again</Button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
-          <p className="text-muted-foreground">Here's what's happening with your events today.</p>
+    <div className="min-h-screen bg-slate-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+          <p className="text-slate-600">Overview of all events and activities</p>
         </div>
-        <Link href="/admin/events/new">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            New Event
-          </Button>
-        </Link>
-      </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
-          const IconComponent = stat.icon
-          return (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                <IconComponent className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground flex items-center">
-                  {stat.trend === "up" ? (
-                    <TrendingUp className="w-3 h-3 mr-1 text-green-500" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 mr-1 text-red-500" />
-                  )}
-                  <span className={stat.trend === "up" ? "text-green-500" : "text-red-500"}>{stat.change}</span>
-                  <span className="ml-1">{stat.description}</span>
-                </p>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Events</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{events.length}</div>
+              <p className="text-xs text-muted-foreground">
+                <TrendingUp className="w-3 h-3 inline mr-1" />
+                Active events
+              </p>
+            </CardContent>
+          </Card>
 
-      {/* Recent Events */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Recent Events</CardTitle>
-              <CardDescription>Your latest event activities and progress</CardDescription>
-            </div>
-            <Link href="/admin/events">
-              <Button variant="outline" size="sm">
-                View All
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Budget</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">৳{totalBudget.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">৳{totalSpent.toLocaleString()} spent</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Guests</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalGuests}</div>
+              <p className="text-xs text-muted-foreground">{confirmedGuests} confirmed</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Vendors</CardTitle>
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{vendors.length}</div>
+              <p className="text-xs text-muted-foreground">{vendors.filter((v) => v.is_preferred).length} preferred</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Main Content */}
+        <Tabs defaultValue="events" className="space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <TabsList className="grid w-full sm:w-auto grid-cols-4">
+              <TabsTrigger value="events">Events</TabsTrigger>
+              <TabsTrigger value="budget">Budget</TabsTrigger>
+              <TabsTrigger value="guests">Guests</TabsTrigger>
+              <TabsTrigger value="vendors">Vendors</TabsTrigger>
+            </TabsList>
+            <Link href="/admin/events/new">
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                New Event
               </Button>
             </Link>
           </div>
-        </CardHeader>
-        <CardContent>
-          {events.length === 0 ? (
-            <div className="text-center py-8">
-              <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Events Yet</h3>
-              <p className="text-muted-foreground mb-4">Create your first event to get started</p>
-              <Link href="/admin/events/new">
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Event
-                </Button>
-              </Link>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {events.slice(0, 5).map((event: any) => {
-                const IconComponent = categoryIcons[event.category as keyof typeof categoryIcons] || Calendar
-                const colorClass = categoryColors[event.category as keyof typeof categoryColors] || "bg-gray-500"
-                const eventBudgetItems = budgetItems.filter((item: any) => item.event === event.id)
-                const eventBudget = eventBudgetItems.reduce(
-                  (sum: number, item: any) => sum + Number.parseFloat(item.estimated_cost),
-                  0,
-                )
-                const eventSpent = eventBudgetItems.reduce(
-                  (sum: number, item: any) => sum + Number.parseFloat(item.actual_cost),
-                  0,
-                )
-                const budgetPercentage = eventBudget > 0 ? (eventSpent / eventBudget) * 100 : 0
 
+          <TabsContent value="events" className="space-y-6">
+            {/* Category Filter */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={selectedCategory === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedCategory("all")}
+              >
+                All Events ({events.length})
+              </Button>
+              {Object.entries(categoryNames).map(([key, name]) => {
+                const IconComponent = categoryIcons[key as keyof typeof categoryIcons]
+                const count = events.filter((event) => event.category === key).length
                 return (
-                  <div key={event.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                    <div className={`w-10 h-10 ${colorClass} rounded-lg flex items-center justify-center`}>
-                      <IconComponent className="w-5 h-5 text-white" />
-                    </div>
-
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">{event.name}</h4>
-                        <div className="flex items-center space-x-2">
-                          <Badge
-                            variant={
-                              event.status === "confirmed"
-                                ? "default"
-                                : event.status === "active"
-                                  ? "secondary"
-                                  : "outline"
-                            }
-                          >
-                            {event.status === "confirmed" && <CheckCircle className="w-3 h-3 mr-1" />}
-                            {event.status === "planning" && <Clock className="w-3 h-3 mr-1" />}
-                            {event.status === "active" && <AlertTriangle className="w-3 h-3 mr-1" />}
-                            {event.status}
-                          </Badge>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/events/${event.id}`}>
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View Details
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem asChild>
-                                <Link href={`/admin/events/${event.id}/edit`}>
-                                  <Edit className="w-4 h-4 mr-2" />
-                                  Edit Event
-                                </Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4 text-sm text-muted-foreground">
-                        <div>
-                          <Calendar className="w-4 h-4 inline mr-1" />
-                          {new Date(event.date).toLocaleDateString()}
-                        </div>
-                        <div>
-                          <Users className="w-4 h-4 inline mr-1" />
-                          {event.expected_guests} guests
-                        </div>
-                        <div>
-                          <DollarSign className="w-4 h-4 inline mr-1" />৳{eventSpent.toLocaleString()}
-                        </div>
-                      </div>
-
-                      {eventBudget > 0 && (
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span>Budget Used: {budgetPercentage.toFixed(1)}%</span>
-                            <span>
-                              ৳{eventSpent.toLocaleString()} / ৳{eventBudget.toLocaleString()}
-                            </span>
-                          </div>
-                          <Progress
-                            value={budgetPercentage}
-                            className={`h-2 ${budgetPercentage > 80 ? "bg-red-100" : "bg-green-100"}`}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <Button
+                    key={key}
+                    variant={selectedCategory === key ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedCategory(key)}
+                  >
+                    <IconComponent className="w-4 h-4 mr-2" />
+                    {name} ({count})
+                  </Button>
                 )
               })}
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Quick Actions */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-          <Link href="/admin/events">
-            <CardHeader className="text-center">
-              <Calendar className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-              <CardTitle className="text-lg">Events</CardTitle>
-              <CardDescription>Manage your events</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{events.length}</div>
-              <p className="text-sm text-muted-foreground">Total Events</p>
-            </CardContent>
-          </Link>
-        </Card>
+            {/* Events Grid */}
+            {filteredEvents.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">
+                    {selectedCategory === "all"
+                      ? "No Events Yet"
+                      : `No ${categoryNames[selectedCategory as keyof typeof categoryNames]} Events`}
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    {selectedCategory === "all"
+                      ? "Create your first event to get started"
+                      : "No events found for this category"}
+                  </p>
+                  <Link href="/admin/events/new">
+                    <Button>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Event
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredEvents.map((event) => {
+                  const IconComponent = categoryIcons[event.category as keyof typeof categoryIcons] || Calendar
+                  const eventBudgetItems = budgetItems.filter((item) => item.event === event.id)
+                  const eventBudget = eventBudgetItems.reduce(
+                    (sum, item) => sum + Number.parseFloat(item.estimated_cost || "0"),
+                    0,
+                  )
+                  const eventSpent = eventBudgetItems.reduce(
+                    (sum, item) => sum + Number.parseFloat(item.actual_cost || "0"),
+                    0,
+                  )
+                  const budgetPercentage = eventBudget > 0 ? (eventSpent / eventBudget) * 100 : 0
+                  const eventGuests = guests.filter((guest) => guest.event === event.id)
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-          <Link href="/admin/budget">
-            <CardHeader className="text-center">
-              <DollarSign className="w-8 h-8 mx-auto mb-2 text-green-600" />
-              <CardTitle className="text-lg">Budget</CardTitle>
-              <CardDescription>Track expenses</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <div className="text-2xl font-bold text-green-600">৳{totalSpent.toLocaleString()}</div>
-              <p className="text-sm text-muted-foreground">Total Spent</p>
-            </CardContent>
-          </Link>
-        </Card>
+                  return (
+                    <Card key={event.id} className="hover:shadow-lg transition-shadow">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-2">
+                            <IconComponent className="w-5 h-5 text-blue-600" />
+                            <Badge variant="secondary" className="text-xs capitalize">
+                              {event.category}
+                            </Badge>
+                          </div>
+                          <Badge variant={event.status === "confirmed" ? "default" : "secondary"} className="text-xs">
+                            {event.status === "confirmed" ? (
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                            ) : (
+                              <Clock className="w-3 h-3 mr-1" />
+                            )}
+                            {event.status}
+                          </Badge>
+                        </div>
+                        <CardTitle className="text-lg">{event.name}</CardTitle>
+                        <CardDescription className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          {new Date(event.date).toLocaleDateString()}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {eventBudget > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span>Budget Used</span>
+                              <span className={budgetPercentage > 80 ? "text-red-600" : "text-green-600"}>
+                                {budgetPercentage.toFixed(1)}%
+                              </span>
+                            </div>
+                            <Progress value={budgetPercentage} className="h-2" />
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>৳{eventSpent.toLocaleString()}</span>
+                              <span>৳{eventBudget.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        )}
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-          <Link href="/admin/guests">
-            <CardHeader className="text-center">
-              <Users className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-              <CardTitle className="text-lg">Guests</CardTitle>
-              <CardDescription>Manage guest lists</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{totalGuests}</div>
-              <p className="text-sm text-muted-foreground">Total Guests</p>
-            </CardContent>
-          </Link>
-        </Card>
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Users className="w-4 h-4 mr-1" />
+                            {eventGuests.length} guests
+                          </div>
+                          <Link href={`/admin/events/${event.id}/edit`}>
+                            <Button size="sm" variant="outline">
+                              View Details
+                            </Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
+          </TabsContent>
 
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-          <Link href="/admin/vendors">
-            <CardHeader className="text-center">
-              <TrendingUp className="w-8 h-8 mx-auto mb-2 text-orange-600" />
-              <CardTitle className="text-lg">Vendors</CardTitle>
-              <CardDescription>Manage vendors</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{vendors.length}</div>
-              <p className="text-sm text-muted-foreground">Total Vendors</p>
-            </CardContent>
-          </Link>
-        </Card>
+          <TabsContent value="budget" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Budget Overview</CardTitle>
+                    <CardDescription>Track spending across all events</CardDescription>
+                  </div>
+                  <Link href="/admin/budget">
+                    <Button variant="outline" size="sm">
+                      View All
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {budgetItems.length === 0 ? (
+                  <div className="text-center py-8">
+                    <DollarSign className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Budget Items Yet</h3>
+                    <p className="text-muted-foreground">Add budget items to track expenses</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <div className="text-2xl font-bold">৳{totalBudget.toLocaleString()}</div>
+                        <p className="text-sm text-muted-foreground">Total Budget</p>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold">৳{totalSpent.toLocaleString()}</div>
+                        <p className="text-sm text-muted-foreground">Total Spent</p>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold">৳{(totalBudget - totalSpent).toLocaleString()}</div>
+                        <p className="text-sm text-muted-foreground">Remaining</p>
+                      </div>
+                    </div>
+                    <Progress value={totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0} className="h-3" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="guests" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Guest Management</CardTitle>
+                    <CardDescription>Manage invitations and RSVPs</CardDescription>
+                  </div>
+                  <Link href="/admin/guests">
+                    <Button variant="outline" size="sm">
+                      View All
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {guests.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Guests Yet</h3>
+                    <p className="text-muted-foreground">Add guests to start managing invitations</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold">{totalGuests}</div>
+                      <p className="text-sm text-muted-foreground">Total Guests</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">{confirmedGuests}</div>
+                      <p className="text-sm text-muted-foreground">Confirmed</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-yellow-600">{pendingGuests}</div>
+                      <p className="text-sm text-muted-foreground">Pending</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{checkedInGuests}</div>
+                      <p className="text-sm text-muted-foreground">Checked In</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="vendors" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Vendor Management</CardTitle>
+                    <CardDescription>Manage event vendors and suppliers</CardDescription>
+                  </div>
+                  <Link href="/admin/vendors">
+                    <Button variant="outline" size="sm">
+                      View All
+                    </Button>
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {vendors.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MapPin className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No Vendors Yet</h3>
+                    <p className="text-muted-foreground">Add vendors to build your supplier network</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold">{vendors.length}</div>
+                      <p className="text-sm text-muted-foreground">Total Vendors</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-red-500">
+                        {vendors.filter((vendor) => vendor.is_preferred).length}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Preferred</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-yellow-500">
+                        {vendors.length > 0
+                          ? (
+                              vendors.reduce((sum, vendor) => sum + Number.parseFloat(vendor.rating || "0"), 0) /
+                              vendors.length
+                            ).toFixed(1)
+                          : "0.0"}
+                      </div>
+                      <p className="text-sm text-muted-foreground">Avg Rating</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

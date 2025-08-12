@@ -19,6 +19,7 @@ interface Vendor {
 interface VendorState {
   vendors: Vendor[]
   preferredVendors: Vendor[]
+  currentVendor: Vendor | null
   isLoading: boolean
   error: string | null
 }
@@ -26,6 +27,7 @@ interface VendorState {
 const initialState: VendorState = {
   vendors: [],
   preferredVendors: [],
+  currentVendor: null,
   isLoading: false,
   error: null,
 }
@@ -42,7 +44,8 @@ export const fetchVendors = createAsyncThunk("vendors/fetchVendors", async (_, {
     if (!response.ok) {
       return rejectWithValue(data)
     }
-    return data
+    // Ensure we return an array
+    return Array.isArray(data) ? data : data.results || []
   } catch (error) {
     return rejectWithValue({ message: "Network error" })
   }
@@ -137,6 +140,9 @@ const vendorSlice = createSlice({
     clearError: (state) => {
       state.error = null
     },
+    setCurrentVendor: (state, action) => {
+      state.currentVendor = action.payload
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -146,8 +152,9 @@ const vendorSlice = createSlice({
       })
       .addCase(fetchVendors.fulfilled, (state, action) => {
         state.isLoading = false
-        state.vendors = action.payload
-        state.preferredVendors = action.payload.filter((vendor: Vendor) => vendor.is_preferred)
+        const vendors = Array.isArray(action.payload) ? action.payload : []
+        state.vendors = vendors
+        state.preferredVendors = vendors.filter((vendor: Vendor) => vendor.is_preferred)
       })
       .addCase(fetchVendors.rejected, (state, action) => {
         state.isLoading = false
@@ -185,6 +192,7 @@ const vendorSlice = createSlice({
       })
       // Fetch Vendor
       .addCase(fetchVendor.fulfilled, (state, action) => {
+        state.currentVendor = action.payload
         const index = state.vendors.findIndex((vendor) => vendor.id === action.payload.id)
         if (index !== -1) {
           state.vendors[index] = action.payload
@@ -195,5 +203,5 @@ const vendorSlice = createSlice({
   },
 })
 
-export const { clearError } = vendorSlice.actions
+export const { clearError, setCurrentVendor } = vendorSlice.actions
 export default vendorSlice.reducer
