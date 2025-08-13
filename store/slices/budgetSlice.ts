@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit"
+import { apiClient } from "@/lib/api"
 
 interface BudgetItem {
   id: number
@@ -6,9 +7,12 @@ interface BudgetItem {
   category: string
   item_name: string
   estimated_cost: number
-  actual_cost: number
-  notes: string
+  actual_cost: number | null
+  vendor: number | null
+  vendor_name: string | null
   status: string
+  due_date: string
+  notes: string
   created_at: string
 }
 
@@ -28,19 +32,10 @@ const initialState: BudgetState = {
 
 export const fetchBudgetItems = createAsyncThunk("budget/fetchBudgetItems", async (_, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem("token")
-    const response = await fetch("http://localhost:8888/api/budget/", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      return rejectWithValue(data)
-    }
+    const data = await apiClient.getBudgetItems()
     return Array.isArray(data) ? data : data.results || []
-  } catch (error) {
-    return rejectWithValue({ message: "Network error" })
+  } catch (error: any) {
+    return rejectWithValue({ message: error.message || "Network error" })
   }
 })
 
@@ -48,22 +43,10 @@ export const createBudgetItem = createAsyncThunk(
   "budget/createBudgetItem",
   async (budgetData: any, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem("token")
-      const response = await fetch("http://localhost:8888/api/budget/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(budgetData),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        return rejectWithValue(data)
-      }
+      const data = await apiClient.createBudgetItem(budgetData)
       return data
-    } catch (error) {
-      return rejectWithValue({ message: "Network error" })
+    } catch (error: any) {
+      return rejectWithValue({ message: error.message || "Network error" })
     }
   },
 )
@@ -72,60 +55,29 @@ export const updateBudgetItem = createAsyncThunk(
   "budget/updateBudgetItem",
   async ({ id, budgetData }: { id: number; budgetData: any }, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem("token")
-      const response = await fetch(`http://localhost:8888/api/budget/${id}/`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(budgetData),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        return rejectWithValue(data)
-      }
+      const data = await apiClient.updateBudgetItem(id, budgetData)
       return data
-    } catch (error) {
-      return rejectWithValue({ message: "Network error" })
+    } catch (error: any) {
+      return rejectWithValue({ message: error.message || "Network error" })
     }
   },
 )
 
 export const deleteBudgetItem = createAsyncThunk("budget/deleteBudgetItem", async (id: number, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem("token")
-    const response = await fetch(`http://localhost:8888/api/budget/${id}/`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    if (!response.ok) {
-      const data = await response.json()
-      return rejectWithValue(data)
-    }
+    await apiClient.deleteBudgetItem(id)
     return id
-  } catch (error) {
-    return rejectWithValue({ message: "Network error" })
+  } catch (error: any) {
+    return rejectWithValue({ message: error.message || "Network error" })
   }
 })
 
 export const fetchBudgetItem = createAsyncThunk("budget/fetchBudgetItem", async (id: number, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem("token")
-    const response = await fetch(`http://localhost:8888/api/budget/${id}/`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      return rejectWithValue(data)
-    }
+    const data = await apiClient.getBudgetItem(id)
     return data
-  } catch (error) {
-    return rejectWithValue({ message: "Network error" })
+  } catch (error: any) {
+    return rejectWithValue({ message: error.message || "Network error" })
   }
 })
 
@@ -138,6 +90,9 @@ const budgetSlice = createSlice({
     },
     setCurrentBudgetItem: (state, action) => {
       state.currentBudgetItem = action.payload
+    },
+    clearCurrentBudgetItem: (state) => {
+      state.currentBudgetItem = null
     },
   },
   extraReducers: (builder) => {
@@ -168,18 +123,36 @@ const budgetSlice = createSlice({
         state.error = action.payload?.message || "Failed to create budget item"
       })
       // Update Budget Item
+      .addCase(updateBudgetItem.pending, (state) => {
+        state.isLoading = true
+        state.error = null
+      })
       .addCase(updateBudgetItem.fulfilled, (state, action) => {
+        state.isLoading = false
         const index = state.budgetItems.findIndex((item) => item.id === action.payload.id)
         if (index !== -1) {
           state.budgetItems[index] = action.payload
         }
+        state.currentBudgetItem = action.payload
+      })
+      .addCase(updateBudgetItem.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload?.message || "Failed to update budget item"
       })
       // Delete Budget Item
       .addCase(deleteBudgetItem.fulfilled, (state, action) => {
         state.budgetItems = state.budgetItems.filter((item) => item.id !== action.payload)
+        if (state.currentBudgetItem?.id === action.payload) {
+          state.currentBudgetItem = null
+        }
       })
       // Fetch Budget Item
+      .addCase(fetchBudgetItem.pending, (state) => {
+        state.isLoading = true
+        state.error = null
+      })
       .addCase(fetchBudgetItem.fulfilled, (state, action) => {
+        state.isLoading = false
         state.currentBudgetItem = action.payload
         const index = state.budgetItems.findIndex((item) => item.id === action.payload.id)
         if (index !== -1) {
@@ -188,8 +161,12 @@ const budgetSlice = createSlice({
           state.budgetItems.push(action.payload)
         }
       })
+      .addCase(fetchBudgetItem.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload?.message || "Failed to fetch budget item"
+      })
   },
 })
 
-export const { clearError, setCurrentBudgetItem } = budgetSlice.actions
+export const { clearError, setCurrentBudgetItem, clearCurrentBudgetItem } = budgetSlice.actions
 export default budgetSlice.reducer

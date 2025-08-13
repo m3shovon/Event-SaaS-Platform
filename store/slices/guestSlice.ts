@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit"
+import { apiClient } from "@/lib/api"
 
 interface Guest {
   id: number
@@ -46,42 +47,24 @@ const initialState: GuestState = {
   error: null,
 }
 
-export const fetchGuests = createAsyncThunk("guests/fetchGuests", async (_, { rejectWithValue }) => {
-  try {
-    const token = localStorage.getItem("token")
-    const response = await fetch("http://localhost:8888/api/guests/", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      return rejectWithValue(data)
+export const fetchGuests = createAsyncThunk(
+  "guests/fetchGuests",
+  async (params?: Record<string, string>, { rejectWithValue }) => {
+    try {
+      const data = await apiClient.getGuests(params)
+      return data
+    } catch (error: any) {
+      return rejectWithValue({ message: error.message || "Network error" })
     }
-    return data
-  } catch (error) {
-    return rejectWithValue({ message: "Network error" })
-  }
-})
+  },
+)
 
 export const createGuest = createAsyncThunk("guests/createGuest", async (guestData: any, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem("token")
-    const response = await fetch("http://localhost:8888/api/guests/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(guestData),
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      return rejectWithValue(data)
-    }
+    const data = await apiClient.createGuest(guestData)
     return data
-  } catch (error) {
-    return rejectWithValue({ message: "Network error" })
+  } catch (error: any) {
+    return rejectWithValue({ message: error.message || "Network error" })
   }
 })
 
@@ -89,60 +72,29 @@ export const updateGuest = createAsyncThunk(
   "guests/updateGuest",
   async ({ id, guestData }: { id: number; guestData: any }, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem("token")
-      const response = await fetch(`http://localhost:8888/api/guests/${id}/`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(guestData),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        return rejectWithValue(data)
-      }
+      const data = await apiClient.updateGuest(id, guestData)
       return data
-    } catch (error) {
-      return rejectWithValue({ message: "Network error" })
+    } catch (error: any) {
+      return rejectWithValue({ message: error.message || "Network error" })
     }
   },
 )
 
 export const deleteGuest = createAsyncThunk("guests/deleteGuest", async (id: number, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem("token")
-    const response = await fetch(`http://localhost:8888/api/guests/${id}/`, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    if (!response.ok) {
-      const data = await response.json()
-      return rejectWithValue(data)
-    }
+    await apiClient.deleteGuest(id)
     return id
-  } catch (error) {
-    return rejectWithValue({ message: "Network error" })
+  } catch (error: any) {
+    return rejectWithValue({ message: error.message || "Network error" })
   }
 })
 
 export const fetchGuest = createAsyncThunk("guests/fetchGuest", async (id: number, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem("token")
-    const response = await fetch(`http://localhost:8888/api/guests/${id}/`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-    const data = await response.json()
-    if (!response.ok) {
-      return rejectWithValue(data)
-    }
+    const data = await apiClient.getGuest(id)
     return data
-  } catch (error) {
-    return rejectWithValue({ message: "Network error" })
+  } catch (error: any) {
+    return rejectWithValue({ message: error.message || "Network error" })
   }
 })
 

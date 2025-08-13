@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Event, BudgetItem, Guest, Vendor
+from .models import User, Event, BudgetItem, Guest, Vendor, SubscriptionPlan, UserSubscription, PaymentHistory, UserSettings, PaymentRequest
 
 # User Serializers
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -54,7 +54,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'first_name', 'last_name', 'email', 'phone', 'whatsapp_number',
-            'business_name', 'business_type', 'country', 'city',
+            'business_name', 'business_type', 'country', 'city', 'avatar',
+            'timezone', 'language',
             'subscription_plan', 'is_verified', 'created_at'
         ]
         read_only_fields = ['id', 'created_at', 'subscription_plan']
@@ -95,3 +96,48 @@ class VendorSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            'first_name', 'last_name', 'email', 'phone', 'whatsapp_number',
+            'business_name', 'business_type', 'country', 'city', 'avatar',
+            'timezone', 'language', 'subscribe_newsletter'
+        ]
+
+# Subscription Serializers
+class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubscriptionPlan
+        fields = '__all__'
+
+class UserSubscriptionSerializer(serializers.ModelSerializer):
+    plan = SubscriptionPlanSerializer(read_only=True)
+    
+    class Meta:
+        model = UserSubscription
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
+class PaymentRequestSerializer(serializers.ModelSerializer):
+    plan_name = serializers.CharField(source='plan.display_name', read_only=True)
+    
+    class Meta:
+        model = PaymentRequest
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at', 'updated_at', 'submitted_at', 'verified_at']
+
+class PaymentHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentHistory
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at']
+
+# Settings Serializers
+class UserSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserSettings
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at', 'updated_at']

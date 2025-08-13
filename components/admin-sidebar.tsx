@@ -184,27 +184,21 @@ const data = {
       icon: MessageCircle,
       badge: "New",
     },
-    {
-      title: "Notifications",
-      url: "/admin/notifications",
-      icon: Bell,
-      badge: "3",
-    },
   ],
   navSettings: [
     {
       title: "Profile Settings",
-      url: "/admin/profile",
+      url: "/admin/settings/profile",
       icon: User,
     },
     {
       title: "Billing & Plans",
-      url: "/admin/billing",
+      url: "/admin/settings/billing",
       icon: CreditCard,
     },
     {
       title: "General Settings",
-      url: "/admin/settings",
+      url: "/admin/settings/general",
       icon: Settings,
     },
   ],

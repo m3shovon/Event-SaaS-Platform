@@ -5,6 +5,8 @@ import budgetReducer from "./slices/budgetSlice"
 import guestReducer from "./slices/guestSlice"
 import vendorReducer from "./slices/vendorSlice"
 import analyticsReducer from "./slices/analyticsSlice"
+import settingsReducer from "./slices/settingsSlice"
+import billingReducer from "./slices/billingSlice"
 
 export const store = configureStore({
   reducer: {
@@ -14,6 +16,8 @@ export const store = configureStore({
     guests: guestReducer,
     vendors: vendorReducer,
     analytics: analyticsReducer,
+    settings: settingsReducer,
+    billing: billingReducer,
   },
 })
 

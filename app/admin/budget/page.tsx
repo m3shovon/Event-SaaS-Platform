@@ -1,227 +1,190 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useDispatch, useSelector } from "react-redux"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
-import { DollarSign, Plus, Search, Edit, Trash2, MoreHorizontal, AlertTriangle, CheckCircle, Clock } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useRouter } from "next/navigation"
+import { useAppDispatch, useAppSelector } from "@/store/hooks"
 import { fetchBudgetItems, deleteBudgetItem } from "@/store/slices/budgetSlice"
 import { fetchEvents } from "@/store/slices/eventSlice"
+import { fetchVendors } from "@/store/slices/vendorSlice"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, DollarSign, Calendar, Package, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
-import Link from "next/link"
-
-const statusColors = {
-  pending: "bg-yellow-100 text-yellow-800",
-  paid: "bg-green-100 text-green-800",
-  partial: "bg-blue-100 text-blue-800",
-  overdue: "bg-red-100 text-red-800",
-}
-
-const statusIcons = {
-  pending: Clock,
-  paid: CheckCircle,
-  partial: AlertTriangle,
-  overdue: AlertTriangle,
-}
 
 export default function BudgetPage() {
-  const dispatch = useDispatch()
-  const { budgetItems, isLoading } = useSelector((state: any) => state.budget)
-  const { events } = useSelector((state: any) => state.events)
+  const router = useRouter()
+  const dispatch = useAppDispatch()
+  const { budgetItems, isLoading } = useAppSelector((state) => state.budget)
+  const { events } = useAppSelector((state) => state.events)
+  const { vendors } = useAppSelector((state) => state.vendors)
+
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [eventFilter, setEventFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
 
   useEffect(() => {
     dispatch(fetchBudgetItems())
     dispatch(fetchEvents())
+    dispatch(fetchVendors())
   }, [dispatch])
 
-  const handleDeleteBudgetItem = async (itemId: number) => {
+  const filteredItems = budgetItems.filter((item) => {
+    const matchesSearch =
+      item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.vendor_name && item.vendor_name.toLowerCase().includes(searchTerm.toLowerCase()))
+    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter
+    return matchesSearch && matchesCategory && matchesStatus
+  })
+
+  const getEventName = (eventId: number) => {
+    const event = events.find((e) => e.id === eventId)
+    return event ? event.name : "Unknown Event"
+  }
+
+  const getVendorName = (vendorId: number | null, vendorName: string | null) => {
+    if (vendorName) return vendorName
+    if (vendorId) {
+      const vendor = vendors.find((v) => v.id === vendorId)
+      return vendor ? vendor.name : "Unknown Vendor"
+    }
+    return "No Vendor"
+  }
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      pending: { variant: "secondary" as const, icon: AlertCircle, color: "text-yellow-600" },
+      paid: { variant: "default" as const, icon: DollarSign, color: "text-green-600" },
+      partial: { variant: "outline" as const, icon: Package, color: "text-blue-600" },
+      overdue: { variant: "destructive" as const, icon: Calendar, color: "text-red-600" },
+    }
+
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending
+    const Icon = config.icon
+
+    return (
+      <Badge variant={config.variant} className="flex items-center gap-1">
+        <Icon className="h-3 w-3" />
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    )
+  }
+
+  const handleEdit = (id: number) => {
+    router.push(`/admin/budget/${id}/edit`)
+  }
+
+  const handleDelete = async (id: number) => {
     if (window.confirm("Are you sure you want to delete this budget item?")) {
       try {
-        await dispatch(deleteBudgetItem(itemId)).unwrap()
-        toast.success("Budget item deleted successfully")
+        await dispatch(deleteBudgetItem(id)).unwrap()
+        toast.success("Budget item deleted successfully!")
       } catch (error) {
         toast.error("Failed to delete budget item")
       }
     }
   }
 
-  const filteredBudgetItems = budgetItems.filter((item: any) => {
-    const matchesSearch =
-      item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.vendor.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter
-    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
-    const matchesEvent = eventFilter === "all" || item.event.toString() === eventFilter
-
-    return matchesSearch && matchesStatus && matchesCategory && matchesEvent
-  })
-
   // Calculate totals
-  const totalEstimated = budgetItems.reduce((sum: number, item: any) => sum + Number.parseFloat(item.estimated_cost), 0)
-  const totalActual = budgetItems.reduce((sum: number, item: any) => sum + Number.parseFloat(item.actual_cost), 0)
-  const budgetUsagePercentage = totalEstimated > 0 ? (totalActual / totalEstimated) * 100 : 0
-
-  // Group by event for summary
-  const eventSummary = events.map((event: any) => {
-    const eventItems = budgetItems.filter((item: any) => item.event === event.id)
-    const estimated = eventItems.reduce((sum: number, item: any) => sum + Number.parseFloat(item.estimated_cost), 0)
-    const actual = eventItems.reduce((sum: number, item: any) => sum + Number.parseFloat(item.actual_cost), 0)
-    return {
-      ...event,
-      estimated,
-      actual,
-      percentage: estimated > 0 ? (actual / estimated) * 100 : 0,
-    }
-  })
+  const totalEstimated = filteredItems.reduce((sum, item) => sum + Number(item.estimated_cost), 0)
+  const totalActual = filteredItems.reduce((sum, item) => sum + Number(item.actual_cost || 0), 0)
+  const totalPaid = filteredItems
+    .filter((item) => item.status === "paid")
+    .reduce((sum, item) => sum + Number(item.actual_cost || 0), 0)
+  const totalPending = filteredItems
+    .filter((item) => item.status === "pending")
+    .reduce((sum, item) => sum + Number(item.estimated_cost), 0)
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="grid gap-4 md:grid-cols-3 mb-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Budget Management</h1>
-          <p className="text-muted-foreground">Track and manage your event expenses</p>
+          <h1 className="text-3xl font-bold">Budget Management</h1>
+          <p className="text-gray-600">Track and manage your event budget items</p>
         </div>
-        <Link href="/admin/budget/new">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Budget Item
-          </Button>
-        </Link>
+        <Button onClick={() => router.push("/admin/budget/new")}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Budget Item
+        </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Budget Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Estimated</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">৳{totalEstimated.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Across all events</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Spent</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">৳{totalActual.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{budgetUsagePercentage.toFixed(1)}% of budget used</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Remaining</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">৳{(totalEstimated - totalActual).toLocaleString()}</div>
-            <Progress value={budgetUsagePercentage} className="mt-2" />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Event Budget Summary */}
-      {eventSummary.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Budget by Event</CardTitle>
-            <CardDescription>Budget breakdown for each event</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {eventSummary.map((event: any) => (
-                <div key={event.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <h4 className="font-medium">{event.name}</h4>
-                    <p className="text-sm text-muted-foreground">
-                      ৳{event.actual.toLocaleString()} / ৳{event.estimated.toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <div className="text-sm font-medium">{event.percentage.toFixed(1)}%</div>
-                    <Progress value={event.percentage} className="w-24" />
-                  </div>
-                </div>
-              ))}
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Estimated</p>
+                <p className="text-2xl font-bold">${totalEstimated.toFixed(2)}</p>
+              </div>
+              <DollarSign className="h-8 w-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
-      )}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Actual</p>
+                <p className="text-2xl font-bold">${totalActual.toFixed(2)}</p>
+              </div>
+              <Package className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Paid</p>
+                <p className="text-2xl font-bold text-green-600">${totalPaid.toFixed(2)}</p>
+              </div>
+              <DollarSign className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Pending</p>
+                <p className="text-2xl font-bold text-yellow-600">${totalPending.toFixed(2)}</p>
+              </div>
+              <AlertCircle className="h-8 w-8 text-yellow-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search budget items..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-            <Select value={eventFilter} onValueChange={setEventFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by event" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Events</SelectItem>
-                {events.map((event: any) => (
-                  <SelectItem key={event.id} value={event.id.toString()}>
-                    {event.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
-              </SelectContent>
-            </Select>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full md:w-48">
                 <SelectValue placeholder="Filter by category" />
               </SelectTrigger>
               <SelectContent>
@@ -238,119 +201,103 @@ export default function BudgetPage() {
                 <SelectItem value="miscellaneous">Miscellaneous</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
+                <SelectItem value="partial">Partial</SelectItem>
+                <SelectItem value="overdue">Overdue</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
 
-      {/* Budget Items */}
-      {filteredBudgetItems.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <DollarSign className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              {budgetItems.length === 0 ? "No Budget Items Yet" : "No Items Found"}
-            </h3>
-            <p className="text-muted-foreground mb-4">
-              {budgetItems.length === 0
-                ? "Add your first budget item to start tracking expenses"
-                : "Try adjusting your search or filter criteria"}
-            </p>
-            {budgetItems.length === 0 && (
-              <Link href="/admin/budget/new">
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Budget Item
-                </Button>
-              </Link>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Budget Items</CardTitle>
-            <CardDescription>All budget items across your events</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {filteredBudgetItems.map((item: any) => {
-                const StatusIcon = statusIcons[item.status as keyof typeof statusIcons]
-                const event = events.find((e: any) => e.id === item.event)
-                const costPercentage = item.estimated_cost > 0 ? (item.actual_cost / item.estimated_cost) * 100 : 0
-
-                return (
-                  <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">{item.item_name}</h4>
+      {/* Budget Items Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Budget Items ({filteredItems.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredItems.length === 0 ? (
+            <div className="text-center py-8">
+              <Package className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No budget items found</h3>
+              <p className="text-gray-600 mb-4">Get started by creating your first budget item.</p>
+              <Button onClick={() => router.push("/admin/budget/new")}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Budget Item
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-4 font-medium">Item</th>
+                    <th className="text-left p-4 font-medium">Event</th>
+                    <th className="text-left p-4 font-medium">Category</th>
+                    <th className="text-left p-4 font-medium">Vendor</th>
+                    <th className="text-left p-4 font-medium">Estimated</th>
+                    <th className="text-left p-4 font-medium">Actual</th>
+                    <th className="text-left p-4 font-medium">Status</th>
+                    <th className="text-left p-4 font-medium">Due Date</th>
+                    <th className="text-left p-4 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item) => (
+                    <tr key={item.id} className="border-b hover:bg-gray-50">
+                      <td className="p-4">
+                        <div>
+                          <div className="font-medium">{item.item_name}</div>
+                          {item.notes && <div className="text-sm text-gray-600 truncate max-w-xs">{item.notes}</div>}
+                        </div>
+                      </td>
+                      <td className="p-4 text-sm">{getEventName(item.event)}</td>
+                      <td className="p-4">
+                        <Badge variant="outline">
+                          {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-sm">{getVendorName(item.vendor, item.vendor_name)}</td>
+                      <td className="p-4 font-medium">${Number(item.estimated_cost).toFixed(2)}</td>
+                      <td className="p-4 font-medium">${Number(item.actual_cost || 0).toFixed(2)}</td>
+                      <td className="p-4">{getStatusBadge(item.status)}</td>
+                      <td className="p-4 text-sm">
+                        {item.due_date ? new Date(item.due_date).toLocaleDateString() : "No due date"}
+                      </td>
+                      <td className="p-4">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="w-4 h-4" />
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Item
+                            <DropdownMenuItem onClick={() => handleEdit(item.id)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteBudgetItem(item.id)} className="text-red-600">
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete Item
+                            <DropdownMenuItem onClick={() => handleDelete(item.id)} className="text-red-600">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </div>
-
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="capitalize">{item.category}</span>
-                        {event && (
-                          <>
-                            <span>•</span>
-                            <span>{event.name}</span>
-                          </>
-                        )}
-                        {item.vendor && (
-                          <>
-                            <span>•</span>
-                            <span>{item.vendor}</span>
-                          </>
-                        )}
-                        {item.due_date && (
-                          <>
-                            <span>•</span>
-                            <span>Due: {new Date(item.due_date).toLocaleDateString()}</span>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <Badge className={statusColors[item.status as keyof typeof statusColors]}>
-                            <StatusIcon className="w-3 h-3 mr-1" />
-                            {item.status}
-                          </Badge>
-                          <div className="text-sm">
-                            <span className="font-medium">৳{Number.parseFloat(item.actual_cost).toLocaleString()}</span>
-                            <span className="text-muted-foreground">
-                              {" "}
-                              / ৳{Number.parseFloat(item.estimated_cost).toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium">{costPercentage.toFixed(1)}%</div>
-                          <Progress value={costPercentage} className="w-24 mt-1" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

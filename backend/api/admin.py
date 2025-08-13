@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Event, BudgetItem, Guest, Vendor
+from .models import User, Event, BudgetItem, Guest, Vendor, SubscriptionPlan, UserSubscription, PaymentRequest, PaymentHistory, UserSettings
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
@@ -46,3 +46,10 @@ class VendorAdmin(admin.ModelAdmin):
     list_filter = ('category', 'price_range', 'is_preferred', 'created_at')
     search_fields = ('name', 'services', 'user__email')
     ordering = ('-created_at',)
+
+admin.site.register(SubscriptionPlan)
+admin.site.register(UserSubscription)
+admin.site.register(PaymentRequest)
+admin.site.register(PaymentHistory)
+admin.site.register(UserSettings)
+

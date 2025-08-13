@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from .models import Event, BudgetItem, Guest, Vendor
 from datetime import datetime, timedelta
 from django.utils import timezone
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def event_analytics(request, event_id):
@@ -79,19 +81,36 @@ def event_analytics(request, event_id):
     ).order_by('-count')
     
     # Timeline data (for charts)
-    budget_timeline = budget_items.extra(
-        select={'month': "DATE_TRUNC('month', created_at)"}
+    # budget_timeline = budget_items.extra(
+    #     select={'month': "DATE_TRUNC('month', created_at)"}
+    # ).values('month').annotate(
+    #     amount=Sum('actual_cost'),
+    #     count=Count('id')
+    # ).order_by('month')
+    
+    # guest_timeline = guests.extra(
+    #     select={'month': "DATE_TRUNC('month', created_at)"}
+    # ).values('month').annotate(
+    #     count=Count('id'),
+    #     attendees=Sum(F('plus_ones') + 1)
+    # ).order_by('month')
+
+    # Budget timeline
+    budget_timeline = budget_items.annotate(
+        month=TruncMonth('created_at')
     ).values('month').annotate(
         amount=Sum('actual_cost'),
         count=Count('id')
     ).order_by('month')
-    
-    guest_timeline = guests.extra(
-        select={'month': "DATE_TRUNC('month', created_at)"}
+
+    # Guest timeline
+    guest_timeline = guests.annotate(
+        month=TruncMonth('created_at')
     ).values('month').annotate(
         count=Count('id'),
         attendees=Sum(F('plus_ones') + 1)
     ).order_by('month')
+
     
     # Event progress
     days_until_event = (event.date - timezone.now().date()).days

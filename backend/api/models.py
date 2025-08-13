@@ -32,6 +32,9 @@ class User(AbstractUser):
     subscribe_newsletter = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    avatar = models.URLField(blank=True, null=True)
+    timezone = models.CharField(max_length=50, default='Asia/Dhaka')
+    language = models.CharField(max_length=10, default='en')
     
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
@@ -41,6 +44,124 @@ class User(AbstractUser):
     
     class Meta:
         db_table = 'auth_user'
+
+class SubscriptionPlan(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    display_name = models.CharField(max_length=100)
+    description = models.TextField()
+    price_monthly = models.DecimalField(max_digits=10, decimal_places=2)
+    price_yearly = models.DecimalField(max_digits=10, decimal_places=2)
+    max_events = models.IntegerField()
+    max_guests_per_event = models.IntegerField()
+    max_vendors = models.IntegerField()
+    features = models.JSONField(default=list)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return self.display_name
+
+class UserSubscription(models.Model):
+    BILLING_CYCLE_CHOICES = [
+        ('monthly', 'Monthly'),
+        ('yearly', 'Yearly'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('cancelled', 'Cancelled'),
+        ('expired', 'Expired'),
+        ('pending', 'Pending'),
+    ]
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='subscription')
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE)
+    billing_cycle = models.CharField(max_length=10, choices=BILLING_CYCLE_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    current_period_start = models.DateTimeField()
+    current_period_end = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.user.email} - {self.plan.name}"
+    
+    @property
+    def is_active(self):
+        return self.status == 'active' and self.current_period_end > timezone.now()
+
+class PaymentRequest(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('bank_transfer', 'Bank Transfer'),
+        ('mobile_banking', 'Mobile Banking'),
+        ('cash', 'Cash'),
+        ('check', 'Check'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('submitted', 'Payment Submitted'),
+        ('verified', 'Payment Verified'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_requests')
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.CASCADE)
+    billing_cycle = models.CharField(max_length=10, choices=UserSubscription.BILLING_CYCLE_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='USD')
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    transaction_id = models.CharField(max_length=200, blank=True)
+    payment_proof = models.URLField(blank=True, help_text="Upload payment receipt/proof")
+    notes = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    admin_notes = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.user.email} - ${self.amount} - {self.status}"
+
+class PaymentHistory(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
+    subscription = models.ForeignKey(UserSubscription, on_delete=models.CASCADE, related_name='payments', null=True, blank=True)
+    payment_request = models.OneToOneField(PaymentRequest, on_delete=models.CASCADE, null=True, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='USD')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    payment_method = models.CharField(max_length=50, default='manual')
+    transaction_id = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.user.email} - ${self.amount} - {self.status}"
+
+class UserSettings(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='settings')
+    email_notifications = models.BooleanField(default=True)
+    sms_notifications = models.BooleanField(default=False)
+    whatsapp_notifications = models.BooleanField(default=True)
+    event_reminders = models.BooleanField(default=True)
+    marketing_emails = models.BooleanField(default=False)
+    data_export_format = models.CharField(max_length=10, choices=[('csv', 'CSV'), ('excel', 'Excel')], default='csv')
+    default_event_privacy = models.CharField(max_length=20, choices=[('private', 'Private'), ('public', 'Public')], default='private')
+    auto_backup = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.user.email} - Settings"
 
 # Event Model
 class Event(models.Model):
@@ -115,7 +236,7 @@ class BudgetItem(models.Model):
     item_name = models.CharField(max_length=200)
     estimated_cost = models.DecimalField(max_digits=10, decimal_places=2)
     actual_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    vendor = models.CharField(max_length=200, blank=True)
+    vendor = models.ForeignKey('Vendor', on_delete=models.SET_NULL, null=True, blank=True, related_name='budget_items')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     due_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)

@@ -54,7 +54,6 @@ class ApiClient {
 
       return response.json()
     } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error)
       throw error
     }
   }
@@ -251,6 +250,71 @@ class ApiClient {
       body: JSON.stringify(settingsData),
     })
   }
+
+  // Settings methods
+  async getSettings() {
+    return this.request("/settings/")
+  }
+
+  async updateSettings(settingsData: any) {
+    return this.request("/settings/", {
+      method: "PUT",
+      body: JSON.stringify(settingsData),
+    })
+  }
+
+  // Billing methods
+  async getSubscriptionPlans() {
+    return this.request("/billing/plans/")
+  }
+
+  async getCurrentSubscription() {
+    return this.request("/billing/subscription/")
+  }
+
+  async createPaymentRequest(paymentData: {
+    plan_id: number
+    billing_cycle: "monthly" | "yearly"
+    payment_method: string
+    transaction_id: string
+    payment_proof: string
+    notes: string
+  }) {
+    return this.request("/billing/request/", {
+      method: "POST",
+      body: JSON.stringify(paymentData),
+    })
+  }
+
+  async getPaymentRequests() {
+    return this.request("/billing/requests/")
+  }
+
+  async cancelSubscription() {
+    return this.request("/billing/cancel/", {
+      method: "POST",
+    })
+  }
+
+  async getPaymentHistory() {
+    return this.request("/billing/history/")
+  }
 }
 
 export const apiClient = new ApiClient()
+
+// Legacy API exports for backward compatibility
+export const authAPI = {
+  signup: (userData: any) => apiClient.register(userData),
+  signin: (credentials: { email: string; password: string }) => apiClient.login(credentials),
+  logout: () => apiClient.logout(),
+  getUser: () => apiClient.getUser(),
+}
+
+export const eventsAPI = {
+  getEvents: (params?: Record<string, string>) => apiClient.getEvents(params),
+  getEvent: (id: number) => apiClient.getEvent(id),
+  createEvent: (eventData: any) => apiClient.createEvent(eventData),
+  updateEvent: (id: number, eventData: any) => apiClient.updateEvent(id, eventData),
+  deleteEvent: (id: number) => apiClient.deleteEvent(id),
+}

@@ -29,4 +29,24 @@ urlpatterns = [
     # WhatsApp
     path('whatsapp/create-group/', views.create_whatsapp_group, name='create-whatsapp-group'),
     path('whatsapp/contacts/<int:event_id>/', views.get_event_contacts, name='get-event-contacts'),
+
+
+    path('settings/', views.user_settings, name='user-settings'),
+    
+    # Billing & Subscriptions
+    path('billing/plans/', views.subscription_plans, name='subscription_plans'),
+    path('billing/subscription/', views.user_subscription, name='user_subscription'),
+    path('billing/request/', views.create_payment_request, name='create_payment_request'),
+    path('billing/requests/', views.payment_requests, name='payment_requests'),
+    path('billing/cancel/', views.cancel_subscription, name='cancel_subscription'),
+    path('billing/history/', views.payment_history, name='payment_history'),
+    
+    # Admin billing URLs
+    path('admin/payments/', views.admin_payment_requests, name='admin_payment_requests'),
+    path('admin/payments/<int:request_id>/approve/', views.approve_payment_request, name='approve_payment_request'),
+    path('admin/payments/<int:request_id>/reject/', views.reject_payment_request, name='reject_payment_request'),
+
+
+
+
 ]
