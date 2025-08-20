@@ -43,7 +43,7 @@ export default function SigninPage() {
 
     setIsLoading(true)
     try {
-      const response = await fetch("http://localhost:8888/api/auth/signin/", {
+      const response = await fetch("https://devnet.pythonanywhere.com/api/auth/signin/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
