@@ -161,6 +161,7 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3333",
     "http://127.0.0.1:3333",
+    "https://letsorganize.vercel.app",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
