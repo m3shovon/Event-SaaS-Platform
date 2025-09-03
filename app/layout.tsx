@@ -7,7 +7,7 @@ import { Toaster } from "sonner"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "EventFlow - Event Management Platform",
+  title: "LetsOrganize - Event Management Platform",
   description: "Comprehensive event management platform for weddings, corporate events, and more",
 }
 

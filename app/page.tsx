@@ -51,10 +51,15 @@ export default function HomePage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-white" />
+                {/* <Calendar className="w-5 h-5 text-white" /> */}
+                <img  
+                  src="/letsorganize.png"
+                  alt="letsorganize Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
               <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                EventFlow
+                LetsOrganize
               </h1>
             </div>
             <div className="flex items-center space-x-4">
@@ -189,11 +194,16 @@ export default function HomePage() {
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-2 mb-4 md:mb-0">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-white" />
+                {/* <Calendar className="w-5 h-5 text-white" /> */}
+                <img  
+                  src="/letsorganize.png"
+                  alt="LetsOrganize Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
-              <span className="text-xl font-bold">EventFlow</span>
+              <span className="text-xl font-bold">LetsOrganize</span>
             </div>
-            <p className="text-slate-400">© 2024 EventFlow. All rights reserved.</p>
+            <p className="text-slate-400">© 2025 LetsOrganize. All rights reserved.</p>
           </div>
         </div>
       </footer>

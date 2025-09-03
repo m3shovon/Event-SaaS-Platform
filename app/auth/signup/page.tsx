@@ -143,9 +143,13 @@ function SignupForm() {
         <CardHeader className="text-center">
           <div className="flex items-center justify-center space-x-2 mb-4">
             <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <Calendar className="w-6 h-6 text-white" />
+                <img  
+                  src="/letsorganize.png"
+                  alt="LetsOrganize Logo"
+                  className="w-full h-full object-contain"
+                />
             </div>
-            <h1 className="text-2xl font-bold">EventFlow</h1>
+            <h1 className="text-2xl font-bold">LetsOrganize</h1>
           </div>
           <CardTitle className="text-2xl">Create Your Account</CardTitle>
           <CardDescription>Start managing your events with a free account</CardDescription>

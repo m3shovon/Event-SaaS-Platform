@@ -54,7 +54,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible"
 const data = {
   user: {
     name: "John Doe",
-    email: "john@eventflow.com",
+    email: "john@letsorganize.com",
     avatar: "/placeholder-user.jpg",
     plan: "Pro Plan",
   },
@@ -66,10 +66,10 @@ const data = {
       isActive: true,
     },
     {
-      title: "Events",
+      title: "Event Management",
       url: "/admin/events",
       icon: Calendar,
-      badge: "12",
+      // badge: "12",
       items: [
         {
           title: "All Events",
@@ -213,10 +213,14 @@ export function AdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
             <SidebarMenuButton size="lg" asChild>
               <a href="/admin">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-sidebar-primary-foreground">
-                  <Calendar className="size-4 text-white" />
+                <img  
+                  src="/letsorganize.png"
+                  alt="LetsOrganize Logo"
+                  className="w-full h-full object-contain"
+                />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">EventFlow</span>
+                  <span className="truncate font-semibold">LetsOrganize</span>
                   <span className="truncate text-xs text-sidebar-foreground/70">{data.user.plan}</span>
                 </div>
               </a>

@@ -36,6 +36,7 @@ const initialState: AuthState = {
 export const signupUser = createAsyncThunk("auth/signup", async (userData: any, { rejectWithValue }) => {
   try {
     const data = await authAPI.signup(userData)
+    console.log(userData)
     return data
   } catch (error: any) {
     return rejectWithValue({ message: error.message })

@@ -35,6 +35,8 @@ export default function ProfileSettingsPage() {
   })
 
   useEffect(() => {
+  console.log(user)
+
     if (user) {
       setFormData({
         first_name: user.first_name || "",

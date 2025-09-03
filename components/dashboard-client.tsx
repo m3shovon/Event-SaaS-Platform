@@ -96,9 +96,13 @@ export default function DashboardClient() {
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
               <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-white" />
+                <img  
+                  src="/letsorganize.png"
+                  alt="LetsOrganize Logo"
+                  className="w-full h-full object-contain"
+                />
               </div>
-              <h1 className="text-xl font-bold">EventFlow</h1>
+              <h1 className="text-xl font-bold">LetsOrganize</h1>
             </Link>
             <div className="flex items-center space-x-4">
               <Button variant="ghost" size="icon">
